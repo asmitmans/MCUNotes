@@ -972,3 +972,81 @@ C99 introdujo el encabezado `<stdint.h>` con tipos explícitos y portables.
 
 ---
 
+Perfecto. Aquí tienes un resumen organizado con **todas las reglas clave** que vimos, agrupadas por tema para facilitar la búsqueda rápida. Este puede usarse como **guía de referencia** en tu documentación personal de desarrollo de firmware.
+
+---
+
+# Resumen de reglas y buenas prácticas en desarrollo de firmware en C
+
+## 1. Principios generales
+
+- Seguir un estándar como **C99** y evitar extensiones no portables.
+- Adoptar guías como **Barr-C** o **MISRA-C** si el proyecto lo justifica.
+- Evitar código complejo o "inteligente"; preferir claridad.
+
+## 2. Estilo y escritura
+
+- Indentación: **4 espacios**, no tabs.
+- Líneas de máximo **80 caracteres**.
+- Siempre usar **llaves `{}`** en estructuras de control, incluso para una línea.
+- Nombres:
+  - Variables: `minusculas_con_guiones`
+  - Constantes: `MAYUSCULAS`
+  - Funciones: `camelCase()`
+  - Structs/typedefs: `NombreCapitalizado`
+
+## 3. Estructura de código
+
+- Un módulo = **archivo `.c` + encabezado `.h`**
+- Incluir solo los headers necesarios.
+- Usar `static` para limitar el alcance de funciones o variables internas.
+- Incluir guardas en todos los headers (`#ifndef`...`#define`...`#endif`).
+
+## 4. Tipos de datos
+
+- **Usar `<stdint.h>`** para `uint8_t`, `int16_t`, `uint32_t`, etc.
+- Evitar `int`, `short`, `long`, `unsigned`.
+- Usar `char` solo para texto.
+- Usar `float` si es necesario; evitar `double` en micros pequeños.
+
+## 5. Declaraciones y control de flujo
+
+- Declarar variables cerca de su uso.
+- Evitar condiciones con efectos colaterales.
+- Incluir `default` y `break` en `switch`.
+- Evitar modificar variables de control dentro de bucles.
+
+## 6. Memoria y punteros
+
+- **Evitar `malloc()` y `free()`** salvo necesidad real.
+- Usar **memoria estática** por defecto.
+- Siempre inicializar punteros (a dirección válida o `NULL`).
+- Usar `const` para datos inmutables.
+- Usar `volatile` para variables compartidas con ISR o hardware.
+- Usar `static` para limitar el ámbito o preservar valor entre llamadas.
+
+## 7. Interrupciones y tiempo real
+
+- Las ISR deben ser **cortas y rápidas**.
+- No hacer procesamiento pesado ni bloqueante en ISR.
+- Usar `volatile` para compartir variables entre main e ISR.
+- Proteger accesos no atómicos con `__disable_irq()` / `__enable_irq()`.
+- Usar **contadores** si no se deben perder eventos; banderas si solo importa que ocurrió.
+
+## 8. Depuración y seguridad
+
+- Usar `assert()` para verificar condiciones en tiempo de ejecución.
+- Usar `_Static_assert()` para validar en tiempo de compilación.
+- Evitar comportamiento indefinido (como accesos fuera de límites).
+- Validar entradas externas antes de usarlas.
+- Escribir macros seguras (con paréntesis) o usar funciones si es posible.
+- Usar herramientas de análisis estático como `cppcheck`, `clang-tidy`.
+
+## 9. Tipos estándar vs. tamaño fijo
+
+- Reemplazar `int`, `short`, `long`, etc. por tipos de `<stdint.h>`.
+- Usar `uint8_t`, `int16_t`, `uint32_t`, etc. para portabilidad y control.
+- Usar `char` para texto y `size_t` en funciones estándar.
+
+---
+

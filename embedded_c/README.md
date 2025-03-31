@@ -612,3 +612,181 @@ Regla clave: Usar `static` para encapsular datos o funciones que no deben ser
 accesibles desde otros archivos.
 
 ---
+
+# 7. Reglas para interrupciones y tiempo real
+
+Esta sección aborda cómo escribir código seguro y robusto en presencia de 
+interrupciones, una parte esencial del firmware embebido, especialmente en 
+sistemas de tiempo real.
+
+## 7.1 Escritura de rutinas de interrupción (ISR)
+
+- Las **ISR deben ser cortas y rápidas**.
+- No deben llamar a funciones complejas, realizar cálculos pesados ni usar 
+  llamadas bloqueantes (como `delay()`).
+- Se recomienda **solo leer datos, establecer banderas o copiar a buffers**, y 
+  luego salir.
+
+Ejemplo correcto:
+```c
+volatile uint8_t dato_listo = 0;
+
+void USART_IRQHandler(void) {
+    buffer_rx = USART->DR;
+    dato_listo = 1;
+}
+```
+
+Ejemplo incorrecto:
+```c
+void USART_IRQHandler(void) {
+    procesarMensaje();  // Mal: procesamiento largo dentro de la ISR
+}
+```
+
+Regla clave: Las ISR solo deben hacer lo mínimo necesario y delegar el 
+procesamiento.
+
+---
+
+## 7.2 Variables compartidas entre ISR y código principal
+
+- Debes declarar como `volatile` toda variable que pueda ser modificada por una 
+  ISR y leída desde el código principal (o viceversa).
+- Esto evita que el compilador optimice su acceso y garantiza 
+  lecturas/escrituras reales.
+
+Ejemplo:
+```c
+volatile uint8_t bandera_adc = 0;
+
+void ADC_IRQHandler(void) {
+    bandera_adc = 1;
+}
+
+int main(void) {
+    while (!bandera_adc);  // `volatile` es necesario para que esto funcione correctamente
+}
+```
+
+Regla clave: Toda variable compartida entre ISR y código principal debe ser 
+`volatile`.
+
+---
+
+## 7.3 Prevención de condiciones de carrera
+
+- Si accedes a variables que pueden ser modificadas simultáneamente por una ISR 
+  y el main, **usa técnicas para garantizar acceso atómico**, como:
+
+  - Deshabilitar temporalmente las interrupciones (`__disable_irq()` / `cli()`).
+  - Usar funciones atómicas del compilador o procesador (si existen).
+
+Ejemplo:
+```c
+__disable_irq();
+contador++;
+__enable_irq();
+```
+
+Regla clave: El acceso a datos compartidos debe ser atómico para evitar 
+resultados inconsistentes.
+
+---
+
+## 7.4 Uso de banderas y doble buffer
+
+- Para comunicar eventos entre ISR y el bucle principal, es preferible usar 
+  **banderas** (`volatile`) o **buffers circulares**.
+- Si transfieres datos grandes, considera un **doble buffer**: uno para la ISR, 
+  otro para el procesamiento.
+
+Ejemplo de bandera:
+```c
+volatile uint8_t rx_flag = 0;
+
+void UART_IRQHandler(void) {
+    rx_buffer = UART->DR;
+    rx_flag = 1;
+}
+```
+
+Ejemplo de doble buffer (concepto):
+```c
+// buffer1 usado por ISR, buffer2 por main
+```
+
+Regla clave: La comunicación entre ISR y tareas principales debe ser clara, 
+rápida y segura.
+
+---
+
+## 7.5. Cuando usar un contador (`while (contador > 0)`) en interrupciones
+
+Usa un contador si:
+
+- **Cada evento importa individualmente** (no quieres perder ninguno).
+- El evento puede **ocurrir varias veces** mientras estás ocupado procesando 
+  uno.
+- Ejemplos:
+  - **Contador de pulsos** (ej. RPM, flujo, encoder).
+  - **Detección de múltiples interrupciones UART o ADC**.
+  - **Medición de frecuencia**.
+
+En estos casos, usar una bandera perdería todos los eventos excepto el último.
+
+**Ejemplo:**
+```c
+volatile uint16_t contador_pulsos = 0;
+
+void ISR_pulso(void) {
+    contador_pulsos++;
+}
+
+void main(void) {
+    while (contador_pulsos > 0) {
+        contador_pulsos--;
+        registrar_pulso();
+    }
+}
+```
+
+---
+
+## 7.6 Cuando una bandera (`if (bandera)`) es suficiente en una interrupción
+
+Usa solo una bandera cuando:
+
+- **Solo te interesa saber si el evento ocurrió**, no cuántas veces.
+- El evento **no es crítico si se pierde** mientras estás ocupado.
+- Ejemplos:
+  - **Botón** para abrir una puerta o iniciar un proceso.
+  - **Fin de conversión ADC** (si solo necesitas el último valor).
+  - **Dato disponible** en UART para leer de un buffer.
+
+En estos casos, si llega un segundo evento mientras procesas el primero, 
+**lo puedes ignorar** porque no te afecta.
+
+**Ejemplo:**
+```c
+volatile uint8_t boton_presionado = 0;
+
+void ISR_boton(void) {
+    boton_presionado = 1;
+}
+
+void main(void) {
+    if (boton_presionado) {
+        boton_presionado = 0;
+        iniciar_accion();  // Se ejecuta solo una vez, aunque hayas presionado varias veces
+    }
+}
+```
+
+**Conclusión:**
+
+> Cuando importa **la cantidad de eventos**, usa un contador.  
+> Cuando solo importa **si ocurrió al menos uno**, una bandera basta.  
+
+---
+

@@ -382,3 +382,122 @@ Regla clave: **Ordenar `struct` para minimizar padding y usar `union` para optim
 
 ---
 
+# 5. Reglas para declaraciones y estructuras de control
+
+Esta sección se enfoca en cómo escribir declaraciones claras, funciones bien 
+estructuradas y estructuras de control seguras y fáciles de mantener.
+
+## 5.1 Declaraciones de funciones y variables
+
+- Cada función debe estar **declarada** en un archivo `.h` y **definida** en su 
+  correspondiente `.c`.  
+- Las variables deben declararse lo más cerca posible de donde se usan.  
+- Evitar declaraciones múltiples de la misma variable o función.  
+- Siempre inicializar las variables en el momento de la declaración si es 
+  posible.
+
+Ejemplo correcto:
+```c
+// En sensor.h
+int leerTemperatura(void);
+
+// En sensor.c
+int leerTemperatura(void) {
+    int temperatura = 0;
+    // lógica
+    return temperatura;
+}
+```
+
+Ejemplo incorrecto:
+```c
+int leerTemperatura(); // Declaración vaga, sin tipo de retorno explícito (mala práctica)
+```
+
+Regla clave: Declarar funciones y variables de forma clara, completa y cercana 
+a su uso.
+
+---
+
+## 5.2 Buenas prácticas en estructuras de control
+
+### If / else
+
+- Siempre usar llaves `{}` incluso si el bloque tiene una sola línea.
+- La condición entre paréntesis debe estar clara y no contener efectos 
+  secundarios.
+
+Ejemplo correcto:
+```c
+if (sensorActivo) {
+    iniciarLectura();
+} else {
+    detenerProceso();
+}
+```
+
+Ejemplo incorrecto:
+```c
+if (sensorActivo)
+    iniciarLectura();  // Riesgo si luego se agrega otra línea sin llaves
+```
+
+---
+
+### Switch / case
+
+- Siempre incluir un caso `default`.
+- Cada `case` debe terminar en `break` (o `return` si aplica).
+- Evitar efectos colaterales dentro de `case`.
+
+Ejemplo correcto:
+```c
+switch (modo) {
+    case MODO_1:
+        configurarModo1();
+        break;
+    case MODO_2:
+        configurarModo2();
+        break;
+    default:
+        modo = MODO_DEFECTO;
+        break;
+}
+```
+
+Ejemplo incorrecto:
+```c
+switch (modo) {
+    case MODO_1:
+        configurarModo1();
+    case MODO_2:
+        configurarModo2();  // Falta break → error lógico
+}
+```
+
+---
+
+### Bucles (for, while, do-while)
+
+- Preferir `for` cuando se conoce la cantidad de iteraciones.
+- Inicializar e incrementar variables en la línea del `for` cuando sea posible.
+- Evitar modificar la variable de control dentro del cuerpo del bucle.
+- Asegurar condiciones de salida para evitar bucles infinitos.
+
+Ejemplo correcto:
+```c
+for (int i = 0; i < MAX; i++) {
+    procesar(i);
+}
+```
+
+Ejemplo incorrecto:
+```c
+int i = 0;
+while (i < MAX) {
+    procesar(i);
+    // Se olvida incrementar i
+}
+```
+
+---

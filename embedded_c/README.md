@@ -501,3 +501,114 @@ while (i < MAX) {
 ```
 
 ---
+
+# 6. Manejo de memoria y punteros
+
+Esta sección aborda las prácticas seguras y claras para trabajar con punteros, 
+memoria estática, uso limitado de memoria dinámica y palabras clave especiales 
+como `const`, `static` y `volatile`.
+
+## 6.1 Uso de memoria dinámica
+
+- **Evitar `malloc()` y `free()`** en sistemas embebidos, especialmente en tiempo 
+  real.
+- La fragmentación de memoria y los errores en la gestión dinámica pueden 
+  provocar fallas impredecibles.
+- Se prefiere el uso de **memoria estática o preasignada**.
+
+Ejemplo no recomendado:
+```c
+char* buffer = malloc(128);  // Puede fallar si no hay memoria disponible
+```
+
+Alternativa recomendada:
+```c
+char buffer[128];  // Memoria estática, más predecible
+```
+
+Regla clave: En sistemas embebidos, usar memoria estática a menos que se 
+justifique claramente lo contrario.
+
+---
+
+## 6.2 Uso correcto de punteros
+
+- **Inicializar siempre los punteros** antes de usarlos.
+- Evitar punteros colgantes (que apuntan a memoria liberada o inválida).
+- Verificar punteros antes de acceder a la memoria que referencian.
+
+Ejemplo seguro:
+```c
+int dato = 5;
+int* ptr = &dato;
+
+if (ptr != NULL) {
+    procesar(*ptr);
+}
+```
+
+Ejemplo incorrecto:
+```c
+int* ptr;
+procesar(*ptr);  // Error: ptr no inicializado
+```
+
+Regla clave: Los punteros deben ser válidos, inicializados y comprobados antes 
+de usarlos.
+
+---
+
+## 6.3 Uso de `const` para proteger datos
+
+- Indica que una variable **no debe cambiarse** después de ser inicializada.
+- Es útil tanto para valores fijos como para asegurar que funciones no 
+  modifiquen argumentos.
+
+Ejemplo:
+```c
+const int TIEMPO_MAXIMO = 1000;
+
+void imprimir(const char* mensaje) {
+    printf("%s\n", mensaje);
+}
+```
+
+Regla clave: Usar `const` siempre que una variable no deba cambiar, ayuda a 
+evitar errores y mejora la documentación del código.
+
+---
+
+## 6.4 Uso de `volatile` en variables compartidas o de hardware
+
+- Indica al compilador que **el valor de una variable puede cambiar en cualquier momento** 
+  (por ejemplo, en una ISR o por hardware).
+- Evita que el compilador optimice lecturas/escrituras que deben ser visibles 
+  inmediatamente.
+
+Ejemplo típico:
+```c
+volatile int bandera_ready = 0;
+
+void ISR_handler(void) {
+    bandera_ready = 1;
+}
+
+void loop() {
+    while (!bandera_ready);  // Sin `volatile`, el compilador podría optimizar esto y generar un bucle infinito
+}
+```
+
+Regla clave: Usar `volatile` en variables modificadas fuera del flujo principal 
+(ISR, DMA, registros hardware).
+
+---
+
+## 6.5 Uso de `static` para limitar el ámbito
+
+- Ya lo vimos antes: en variables globales o funciones, `static` **limita el acceso al archivo actual**.
+- En variables locales, `static` **preserva el valor entre llamadas**.
+
+Regla clave: Usar `static` para encapsular datos o funciones que no deben ser 
+accesibles desde otros archivos.
+
+---

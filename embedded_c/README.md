@@ -790,3 +790,185 @@ void main(void) {
 
 ---
 
+# 8. Reglas de depuración y seguridad
+
+Esta sección presenta recomendaciones para escribir código embebido más seguro, 
+fácil de verificar, depurar y mantener en entornos críticos.
+
+## 8.1 Uso de `assert` y `static_assert`
+
+- `assert()` permite detectar errores lógicos durante el desarrollo (solo si las 
+  comprobaciones no se eliminan en compilación).
+- `static_assert` evalúa expresiones **en tiempo de compilación**, útil para validar 
+  tamaños de estructuras, tipos, límites, etc.
+
+Ejemplo con `assert` (requiere `#include <assert.h>`):
+```c
+assert(valor >= 0);  // Termina el programa si la condición no se cumple (en debug)
+```
+
+Ejemplo con `static_assert` (desde C11):
+```c
+_Static_assert(sizeof(int) == 4, "int no tiene 4 bytes");
+```
+
+Regla clave: Usar `assert` en desarrollo para validar condiciones críticas y 
+`static_assert` para errores detectables en tiempo de compilación.
+
+---
+
+## 8.2 Evitar comportamiento indefinido
+
+- No acceder a memoria fuera de límites (`array[5]` en un arreglo de 5 elementos).
+- No hacer divisiones por cero.
+- No usar punteros no inicializados.
+- No modificar una variable más de una vez en una sola expresión (esto causa 
+  resultados impredecibles).
+
+Ejemplo incorrecto:
+```c
+a = a++ + ++a;  // Comportamiento indefinido
+```
+
+Ejemplo correcto:
+```c
+a++;
+a = a + 1;
+```
+
+Regla clave: Evitar construcciones complejas y ambigüedades que el compilador no 
+garantiza evaluar en orden definido.
+
+---
+
+## 8.3 Uso de herramientas de análisis estático
+
+- Son programas que analizan el código sin ejecutarlo y detectan errores 
+  comunes, violaciones de estándares y vulnerabilidades.
+- Pueden integrarse al flujo de desarrollo y prevenir fallos antes de compilar.
+
+Ejemplos:
+- `cppcheck`, `clang-tidy`, `splint` (gratis).
+- PC-lint, Coverity, MISRA compliance tools (comerciales).
+
+Regla clave: Integrar herramientas de análisis estático para mejorar la calidad 
+antes de probar en hardware.
+
+---
+
+## 8.4 Validar entradas y proteger contra desbordamientos
+
+- Siempre validar datos externos antes de usarlos (entradas del usuario, 
+  registros de periféricos, buffers).
+- Verificar los límites antes de copiar datos a arreglos o escribir en memoria.
+
+Ejemplo:
+```c
+if (indice < MAX_TAM) {
+    arreglo[indice] = valor;
+}
+```
+
+Nunca asumir que la entrada es válida sin comprobarla.
+
+Regla clave: Todo dato externo o no controlado debe validarse antes de usar.
+
+---
+
+## 8.5 Evitar macros peligrosas
+
+- Evitar macros con efectos colaterales, especialmente si usan parámetros 
+  múltiples o expresiones complejas.
+- Usar funciones en lugar de macros cuando se pueda, o definir macros con 
+  paréntesis en todo.
+
+Ejemplo seguro:
+```c
+#define CUADRADO(x) ((x) * (x))  // Bien: paréntesis protegen
+```
+
+Ejemplo problemático:
+```c
+#define CUADRADO(x) x * x  // Mal: CUADRADO(a + 1) se evalúa como a + 1 * a + 1
+```
+
+Regla clave: Proteger macros con paréntesis o reemplazarlas por funciones si son 
+complejas.
+
+---
+
+Perfecto, aquí tienes un nuevo punto que resume y formaliza esta recomendación:
+
+---
+
+# 9. Buenas prácticas en el uso de tipos estándar vs. tipos de tamaño fijo
+
+Esta sección explica qué tipos del lenguaje C deben evitarse en firmware 
+embebido y cuáles se deben preferir para garantizar portabilidad, claridad y 
+control sobre los recursos del sistema.
+
+## 9.1 Evitar tipos clásicos de tamaño variable
+
+Los tipos como `int`, `short`, `long` y sus versiones sin signo (`unsigned`) tienen 
+un **tamaño que varía según la arquitectura y el compilador**.
+
+| Tipo clásico     | Tamaño variable según plataforma     |
+|------------------|--------------------------------------|
+| `int`            | 16 o 32 bits                         |
+| `unsigned int`   | 16 o 32 bits                         |
+| `short`          | 16 bits normalmente, pero no fijo    |
+| `long`           | 32 o 64 bits                         |
+| `unsigned long`  | Ídem                                 |
+
+Este comportamiento hace que el mismo código pueda comportarse de forma distinta 
+en microcontroladores diferentes.
+
+**Regla clave:** No usar tipos con tamaño dependiente de la plataforma si 
+necesitas resultados predecibles.
+
+---
+
+## 9.2 Usar tipos con tamaño fijo
+
+C99 introdujo el encabezado `<stdint.h>` con tipos explícitos y portables.
+
+| Tipo de `<stdint.h>` | Tamaño garantizado |
+|-----------------------|--------------------|
+| `uint8_t`             | 8 bits sin signo   |
+| `int8_t`              | 8 bits con signo   |
+| `uint16_t`            | 16 bits sin signo  |
+| `int16_t`             | 16 bits con signo  |
+| `uint32_t`            | 32 bits sin signo  |
+| `int32_t`             | 32 bits con signo  |
+| `uint64_t`            | 64 bits sin signo  |
+| `int64_t`             | 64 bits con signo  |
+
+**Ventajas:**
+- Comportamiento predecible entre plataformas.
+- Claridad del rango de valores.
+- Mejor control del uso de memoria.
+
+---
+
+## 9.3 ¿Qué tipos estándar siguen siendo aceptables?
+
+- `char`: aceptado para manejo de texto (`char*`, `char[]`), aunque se puede usar 
+  `uint8_t` para datos binarios de 8 bits.
+- `float`: aceptado si necesitas precisión decimal (por ejemplo, sensores).
+- `double`: aceptado solo si el hardware lo soporta eficientemente. En micros 
+  pequeños puede ser costoso.
+- `size_t`: aceptado para funciones estándar (`strlen`, `memcpy`), aunque también 
+  tiene tamaño variable.
+
+---
+
+## 9.4 Recomendaciones prácticas
+
+- **Siempre que se use una variable numérica en firmware**, declarar con tipo fijo 
+  (`uint8_t`, `int16_t`, etc.).
+- Evitar `int`, `short`, `long`, excepto en código muy específico o portado.
+- Reservar `char` para texto, `float` para valores decimales y `size_t` en funciones 
+  estándar.
+
+---
+

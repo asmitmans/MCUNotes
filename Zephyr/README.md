@@ -206,3 +206,151 @@ bindings.yaml ->   interpretación del Devicetree
 
 ---
 
+# Instalación en Ubuntu
+
+## Paso 1: Requisitos del sistema
+
+```bash
+sudo apt update && sudo apt install --no-install-recommends \
+    git cmake ninja-build gperf \
+    ccache dfu-util device-tree-compiler wget \
+    python3-dev python3-pip python3-venv \
+    gcc g++ make unzip xz-utils file \
+    udev
+```
+
+---
+
+## Paso 2: Crear entorno virtual Python
+
+```bash
+mkdir -p ~/zephyrproject
+cd ~/zephyrproject
+python3 -m venv venv-zephyr
+source venv-zephyr/bin/activate
+```
+
+---
+
+## Paso 3: Instalar `west`
+
+```bash
+pip install --upgrade pip
+pip install west
+```
+
+---
+
+## Paso 4: Inicializar el workspace Zephyr
+
+```bash
+west init -m https://github.com/zephyrproject-rtos/zephyr --mr main .
+west update
+west zephyr-export
+```
+
+> `--mr main` asegura que traés la rama principal, no una versión antigua.
+
+---
+
+## Paso 5: Instalar Python deps de Zephyr
+
+```bash
+pip install -r zephyr/scripts/requirements.txt
+```
+
+---
+
+## Paso 6: Instalar toolchains recomendados
+
+### Instalar Zephyr SDK (para todo lo que no sea ESP32)
+
+```bash
+cd ~/zephyrproject
+wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.16.4/zephyr-sdk-0.16.4_linux-x86_64.tar.xz
+tar xvf zephyr-sdk-0.16.4_linux-x86_64.tar.xz
+cd zephyr-sdk-0.16.4
+./setup.sh
+```
+Y agregá a tu ~/.bashrc:
+```bash
+export ZEPHYR_TOOLCHAIN_VARIANT=zephyr
+export ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyrproject/zephyr-sdk-0.16.4
+```
+
+### Instalar ESP-IDF para programar ESP32
+```bash
+cd ~/zephyrproject
+mkdir toolchains
+cd toolchains
+
+git clone -b v5.1.2 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf
+./install.sh
+source export.sh
+deactivate
+cd ~/zephyrproject/toolchains/esp-idf
+./tools/idf_tools.py install-python-env
+```
+
+> Profesional: separar entornos por target
+> Es válido tener:
+> - `venv-zephyr` → para placas no ESP32
+> - entorno propio de ESP-IDF → para ESP32
+
+---
+
+## Paso 7: Añadir Zephyr al entorno
+
+Añadí estas líneas a tu `~/.bashrc` o `~/.zshrc`:
+
+```bash
+export ZEPHYR_BASE=$HOME/zephyrproject/zephyr
+source ~/zephyrproject/venv-zephyr/bin/activate
+```
+
+Recargá:
+
+```bash
+source ~/.bashrc
+```
+
+---
+
+## Paso 8: Instalar soporte para ESP32
+
+```bash
+cd ~/zephyrproject
+source venv-zephyr/bin/activate
+west update
+```
+
+> Esto activa la HAL de Espressif, que usa el SDK oficial debajo.
+
+---
+
+## Verificación
+
+```bash
+west list
+```
+
+Deberías ver algo como:
+```
+zephyr          zephyrproject/zephyr
+hal_espressif   zephyrproject/modules/hal/espressif
+...
+```
+
+Y luego podés probar que compile con:
+
+```bash
+cd ~/zephyrproject
+source ~/zephyrproject/venv-zephyr/bin/activate
+source ~/zephyrproject/toolchains/esp-idf/export.sh
+west build -b esp32_devkitc_wroom/esp32/procpu zephyr/samples/hello_world
+```
+Usás `/esp32/procpu` como “sub-target” para decirle a Zephyr qué core de la placa 
+debe preparar.
+
+---

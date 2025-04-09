@@ -353,4 +353,39 @@ west build -b esp32_devkitc_wroom/esp32/procpu zephyr/samples/hello_world
 Usás `/esp32/procpu` como “sub-target” para decirle a Zephyr qué core de la placa 
 debe preparar.
 
+### ¿Qué se generó?
+Tu carpeta build/ ahora contiene:
+- zephyr.elf: binario enlazado
+- zephyr.bin: imagen binaria para flashear
+- zephyr.map: mapa de memoria
+
+Archivos intermedios, headers generados, etc.
+
+### Flashear en tu ESP32
+
+Conectá tu ESP32-WROOM-32 por USB, y usá:
+
+```bash
+west flash
+```
+
+> Zephyr usará `esptool.py` para detectar el puerto y cargar la imagen.  
+> Si necesitás especificar el puerto, podés usar:
+
+```bash
+west flash --dev /dev/ttyUSB0
+```
+
+(ajustá el puerto según tu sistema)
 ---
+
+### En desarrollo profesional:
+- Nunca deberías trabajar en zephyr/samples/ ni en zephyr/ directamente.
+- Lo correcto es crear tu propio directorio de proyecto fuera de zephyr/, para 
+  mantener:
+  - Separación limpia entre tu código y el framework
+  - Portabilidad y control de versiones propios
+  - Posibilidad de compartir tu código o mantenerlo en Git sin cargar todo Zephyr
+
+---
+

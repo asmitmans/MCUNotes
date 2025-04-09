@@ -389,3 +389,142 @@ west flash --dev /dev/ttyUSB0
 
 ---
 
+# Proyecto Zephyr desde cero: Blink en GPIO2 del ESP32
+
+### Objetivo:
+Parpadear un LED conectado al pin GPIO2 del ESP32-WROOM-32, de forma correcta 
+según el flujo Zephyr (no hardcodeada).
+
+---
+
+## 1. Estructura de carpetas y archivos
+
+Desde `~/zephyrproject/`:
+
+```bash
+mkdir -p blink_esp32/src
+touch blink_esp32/CMakeLists.txt
+touch blink_esp32/prj.conf
+touch blink_esp32/src/main.c
+mkdir blink_esp32/boards
+touch blink_esp32/boards/esp32_devkitc_wroom.overlay
+```
+
+---
+
+## 2. Contenido de archivos
+
+### `CMakeLists.txt`
+
+```cmake
+cmake_minimum_required(VERSION 3.20.0)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+project(blink_esp32)
+target_sources(app PRIVATE src/main.c)
+```
+
+---
+
+### `prj.conf`
+
+```conf
+CONFIG_GPIO=y
+CONFIG_MAIN_STACK_SIZE=1024
+CONFIG_LOG=y
+```
+
+---
+
+### `src/main.c`
+
+```c
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(main);
+
+#define LED_NODE DT_ALIAS(led0)
+
+#if !DT_NODE_HAS_STATUS(LED_NODE, okay)
+#error "No se definió led0 en el devicetree overlay"
+#endif
+
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
+
+int main(void)
+{
+    int ret;
+
+    if (!device_is_ready(led.port)) {
+        LOG_ERR("GPIO controlador no está listo");
+        return 0;
+    }
+
+    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    if (ret < 0) {
+        LOG_ERR("Error configurando pin");
+        return 0;
+    }
+
+    while (1) {
+        gpio_pin_toggle_dt(&led);
+        k_msleep(500);
+    }
+
+    return 1;
+}
+
+```
+
+---
+
+### `boards/esp32_devkitc_wroom.overlay`
+
+```dts
+/ {
+    leds {
+        compatible = "gpio-leds";
+
+        led2: led_2 {
+            gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+            label = "LED en GPIO2";
+        };
+    };
+
+    aliases {
+        led0 = &led2;
+    };
+};
+```
+
+---
+
+## 3. Compilar y flashear
+
+Desde `~/zephyrproject/`:
+
+```bash
+source ~/zephyrproject/venv-zephyr/bin/activate
+source ~/zephyrproject/toolchains/esp-idf/export.sh
+
+cd ~/zephyrproject/blink_esp32
+west build -b esp32_devkitc_wroom/esp32/procpu
+west flash
+```
+
+Si necesitás especificar el puerto serie:
+
+```bash
+west flash --dev /dev/ttyUSB0
+```
+
+---
+
+## Resultado esperado
+
+El pin GPIO2 se activa/desactiva cada 500 ms (LED parpadeando si tenés uno 
+conectado ahí, o el led onboard si tu placa lo tiene en GPIO2).
+
+---

@@ -1050,3 +1050,256 @@ Perfecto. Aquí tienes un resumen organizado con **todas las reglas clave** que 
 
 ---
 
+## Fundamentos de C para sistemas embebidos y drivers
+
+### 1. Estructuras (`struct`)
+Las `struct` son la piedra angular del desarrollo embebido en C. Se usan para 
+todo: representar configuraciones, buffers, periféricos, APIs, etc.
+
+#### Ejemplo típico:
+```c
+struct gpio_dt_spec {
+    const struct device *port;
+    gpio_pin_t pin;
+    gpio_flags_t flags;
+};
+```
+
+Se usan como objetos en POO: una estructura representa **una instancia** de algo: 
+un GPIO, un SPI, una pantalla.
+
+#### Acceso y uso:
+```c
+gpio_pin_set_dt(&config->dc, 1); // Accede a un miembro de la estructura
+```
+
+#### Práctica común:
+- Se define una estructura para configuración (`config`)
+- Otra para el estado interno del driver (`data`)
+- Se accede con punteros.
+
+#### Mini ejercicio:
+Declara una estructura `SensorConfig` con `direccion_i2c`, `frecuencia`, y `modo`. 
+Crea una función que reciba un puntero a esta estructura y la imprima.
+
+---
+
+### 2. Punteros (y doble puntero)
+
+En embebido, **todo pasa por punteros**. Especialmente:
+- Acceso a estructuras
+- Paso de datos (sin copiar memoria)
+- Acceso directo a registros
+
+#### Lectura de un puntero a estructura:
+```c
+const struct uc8176_config *config = dev->config;
+```
+
+Aquí:
+- `dev` apunta a una estructura `device`
+- `dev->config` es un puntero a otra estructura (`uc8176_config`)
+- `config` ahora apunta a esa estructura, y se usa para acceder a sus miembros.
+
+#### Variante útil:
+Punteros a arreglos, buffers o memoria dinámica:
+```c
+uint8_t buffer[10];
+uint8_t *p = buffer;
+```
+
+#### Mini ejercicio:
+Declara un arreglo de 5 enteros, pásalo a una función usando puntero, y modifica 
+los valores.
+
+---
+
+### 3. `const`, `volatile`, `static`
+
+#### `const`
+- Garantiza que la variable no será modificada (por el programa).
+- Muy usado en configuraciones.
+
+```c
+const uint8_t comando = 0x01;
+```
+
+#### `volatile`
+- Indica que el valor puede cambiar *por fuera del código*, como en un registro 
+  de hardware.
+
+```c
+volatile uint32_t *status_reg = (uint32_t *)0x40001000;
+```
+
+#### `static`
+- Tiene dos usos:
+  - **Dentro de una función**: conserva su valor entre llamadas.
+  - **Fuera de funciones**: visibilidad solo dentro del archivo `.c`.
+
+---
+
+### 4. Macros (`#define`) y funciones inline
+
+Los drivers usan **macros como si fueran funciones**, porque no generan overhead.
+
+#### Ejemplo de macro:
+```c
+#define SET_BIT(REG, POS) ((REG) |= (1 << (POS)))
+```
+
+También hay macros que crean objetos complejos:
+
+```c
+#define SPI_BUF_INIT(buf, len) (struct spi_buf[]){ { .buf = buf, .len = len } }
+```
+
+Esto crea un array de estructuras directamente como argumento, sin declararlo 
+antes.
+
+#### Tip:
+- En macros con bloques, usa `do { } while(0)` para evitar errores de sintaxis.
+
+---
+
+### 5. Arreglos y estructuras anónimas
+
+C típico embebido:
+```c
+&(struct spi_buf[]){{ .buf = &cmd, .len = 1 }}
+```
+
+Esto crea un **array anónimo de una estructura**. Útil para funciones que esperan 
+punteros a arrays de buffers.
+
+#### Consejo:
+Aunque feo, evita declarar variables extras en RAM limitada y mejora legibilidad 
+local.
+
+---
+
+### 6. Abstracción de dispositivo (`struct device`)
+
+En muchos frameworks embebidos (como Zephyr, STM HAL), existe una estructura base 
+tipo "dispositivo genérico".
+
+```c
+struct device {
+    const void *config;
+    void *data;
+    const struct api *driver_api;
+};
+```
+
+#### Ejemplo de uso:
+```c
+const struct spi_dt_spec *bus = &config->bus;
+spi_write_dt(bus, &buf, 1);
+```
+
+Este patrón permite generalizar: el mismo código puede trabajar con distintos 
+dispositivos.
+
+---
+
+### 7. Callbacks y punteros a función
+
+Los punteros a función permiten definir APIs genéricas o callbacks.
+
+```c
+struct driver_api {
+    int (*write)(const struct device *dev, const uint8_t *buf, size_t len);
+};
+```
+
+Para llamar:
+```c
+dev->api->write(dev, buf, len);
+```
+
+**Simula una clase con métodos virtuales.**
+
+---
+
+### 8. Bitfields y máscaras
+
+Muy usado para trabajar con registros.
+
+```c
+#define CTRL_ENABLE   (1 << 0)
+#define CTRL_RESET    (1 << 1)
+
+reg |= CTRL_ENABLE;
+reg &= ~CTRL_RESET;
+```
+
+O con estructuras específicas:
+```c
+struct {
+    uint8_t enable : 1;
+    uint8_t reset  : 1;
+} ctrl_reg;
+```
+
+#### Consejo:
+En sistemas críticos, es mejor usar máscaras explícitas.
+
+---
+
+### 9. Registro de periféricos (mapeo directo)
+
+Punteros a direcciones específicas:
+
+```c
+#define GPIO_BASE_ADDR 0x40020000
+#define GPIO_OUT_REG   (*(volatile uint32_t *)(GPIO_BASE_ADDR + 0x04))
+```
+
+Esto accede **directamente al hardware**, sin drivers.
+
+---
+
+### 10. Funciones "parecidas a métodos"
+
+Muchos drivers agrupan funciones con nombres que imitan métodos:
+```c
+uc8176_send_command(dev, 0x01);
+uc8176_send_data(dev, data, len);
+```
+
+Así como en OOP usarías `device.send()`, aquí usas `driver_func(dev, ...)`.
+
+---
+
+## Resumen de patrones comunes en código embebido
+
+| Patrón | Descripción |
+|-------|-------------|
+| `struct + punteros` | Simula objetos y métodos. |
+| `config/data` | Estructuras separadas para configuración y estado. |
+| `api->func()` | Abstracción de interfaz virtual. |
+| `gpio_pin_set_dt(...)` | Funciones específicas con objetos encapsulados. |
+| `&(struct array[]){{...}}` | Array anónimo pasado directamente. |
+| `#define` | Macros para registros, máscaras, funciones. |
+| `volatile` | Para registros de hardware. |
+| `bit masking` | Manipulación precisa de bits. |
+
+---
+
+## ¿Qué más podrías repasar?
+
+- Cómo usar `typedef` con estructuras.
+- Cómo definir un `enum` para representar estados del dispositivo.
+- Cómo crear tu propia capa HAL (Hardware Abstraction Layer).
+- Uso de `memcpy`, `memset`, y funciones de `string.h` en buffers.
+- Organización modular: `.h` y `.c` por periférico.
+- Lectura de registros mediante mapeo directo.
+- Cómo escribir un *driver dummy* para practicar estructura.
+
+---
+
+TODO: desarrolle un ejemplo completo estilo driver (como uno de GPIO o SPI 
+simulado), o prefieres que prepare ejercicios prácticos por tema para que puedas 
+practicar cada uno?
+
+---
